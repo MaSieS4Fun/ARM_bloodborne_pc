@@ -1,4 +1,4 @@
-##  Bloodborne port (bbport) for ARM64 (aarch64): the game's x86-64 code runs in FEXCore's JIT; the runtime and the GPU (Vulkan) are native aarch64.
+#  Bloodborne port (bbport) for ARM64 (aarch64): the game's x86-64 code runs in FEXCore's JIT; the runtime and the GPU (Vulkan) are native aarch64.
 
 
 
@@ -7,7 +7,7 @@
 THIS PROJECT IS NOT RELATED TO SHADPS4. ALL QUESTIONS RELATED TO THIS PROJECT SHOULD BE SENT TO THE DISCORD SERVER https://discord.gg/KYZRKk9CB, NOT TO THE SHADPS4 SERVER.
 
 
-# bbport — a native Linux port of Bloodborne
+## bbport — a native Linux port of Bloodborne
 
 **English** · [Русский](README.ru.md)
 
