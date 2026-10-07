@@ -1,6 +1,10 @@
+
+
+
+
 #  Bloodborne port (bbport) for ARM64 (aarch64): the game's x86-64 code runs in FEXCore's JIT; the runtime and the GPU (Vulkan) are native aarch64.
 
-
+https://github.com/user-attachments/assets/e220b42c-849a-4e59-8f69-ada11f832298
 
 
 
