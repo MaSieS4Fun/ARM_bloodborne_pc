@@ -4,6 +4,8 @@
 # its /nix/store with user namespaces, available on SteamOS and most desktops).
 # Running it opens the launcher; `--play` starts the game with the launcher's saved settings.
 # Data (generated files, saves, bbport.ini): ~/.local/share/bbport (BB_DATA_DIR).
+# BB_MANGOHUD_SRC=<MangoHud tree>: bundle that MangoHud (and its MangoHud/MangoHud.conf) instead
+# of nixpkgs' release (packaging/default.nix).
 set -euo pipefail
 cd -- "$(dirname -- "$0")/.."
 [[ -f out/bb-probe && -f out/gpu/libbbgpu.so ]] || { echo 'Build first: bash build.sh' >&2; exit 1; }

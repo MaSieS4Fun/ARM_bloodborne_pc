@@ -53,6 +53,28 @@ let
     '';
   });
   icdMesa = name: if arm && name == "freedreno" then turnip else pkgs.mesa;
+  # BB_MANGOHUD_SRC: a MangoHud 0.8.4 tree with its subprojects already fetched (meson setup),
+  # replacing nixpkgs' release, e.g. one that reads the Adreno's load and the Snapdragon sensors.
+  # Only its Vulkan layer is bundled.
+  mangohudSrc = builtins.getEnv "BB_MANGOHUD_SRC";
+  mangohud = if mangohudSrc == "" then pkgs.mangohud else
+    (pkgs.mangohud.override { gamescopeSupport = false; nvidiaSupport = false; }).overrideAttrs (old: {
+      src = builtins.path {
+        name = "mangohud-src";
+        path = mangohudSrc;
+        filter = path: type:
+          !(builtins.elem (lib.removePrefix (mangohudSrc + "/") (toString path))
+            [ ".git" "build" "subprojects/packagecache" ])
+          && baseNameOf path != "__pycache__";
+      };
+      postUnpack = "";
+      # Its LD_PRELOAD script differs from the release's; the game loads the Vulkan layer.
+      patches = lib.filter (patch: !(lib.hasSuffix "preload-nix-workaround.patch" (toString patch)))
+        old.patches;
+      postPatch = "";
+      mesonFlags = old.mesonFlags ++ [ "-Dwith_mangohud_next=false" ];
+      buildInputs = old.buildInputs ++ [ pkgs.vulkan-loader pkgs.libdrm pkgs.libGL ];
+    });
   icds = lib.concatMapStringsSep ":"
     (name: "${icdMesa name}/share/vulkan/icd.d/${name}_icd.${icdArch}.json") icdNames;
   # Fonts: bundled DejaVu and Adwaita plus the host's usual font directories, but not the host's
@@ -74,7 +96,7 @@ let
   # Environment the closure needs on any host: icon themes, SVG icon loader, fonts (above) and
   # a UTF-8 locale built into glibc.
   common = ''
-      --prefix XDG_DATA_DIRS : ${pkgs.mangohud}/share:${pkgs.adwaita-icon-theme}/share:${pkgs.hicolor-icon-theme}/share:${pkgs.gtk4}/share/gsettings-schemas/${pkgs.gtk4.name} \
+      --prefix XDG_DATA_DIRS : ${mangohud}/share:${pkgs.adwaita-icon-theme}/share:${pkgs.hicolor-icon-theme}/share:${pkgs.gtk4}/share/gsettings-schemas/${pkgs.gtk4.name} \
       --set-default GDK_PIXBUF_MODULE_FILE ${pkgs.librsvg}/${pkgs.gdk-pixbuf.moduleDir}.cache \
       --set-default FONTCONFIG_FILE ${fontsConf} \
       --set-default LC_ALL C.UTF-8 \
@@ -124,6 +146,11 @@ pkgs.stdenv.mkDerivation {
     install -m755 out/bb-gpu-capabilities $d/bin/bb-gpu-capabilities
     install -Dm755 out/gpu/libbbgpu.so $d/bin/gpu/libbbgpu.so
     ${lib.optionalString arm "install -Dm755 out/fex/libbbcpu.so $d/bin/cpu/libbbcpu.so"}
+    ${lib.optionalString (mangohudSrc != "") ''
+      if [ -f ${mangohud.src}/MangoHud/MangoHud.conf ]; then
+        install -Dm644 ${mangohud.src}/MangoHud/MangoHud.conf $d/mangohud/MangoHud.conf
+      fi
+    ''}
     runHook postInstall
   '';
   postFixup = ''
@@ -149,5 +176,6 @@ pkgs.stdenv.mkDerivation {
       --prefix PATH : ${lib.makeBinPath [ pkgs.bash pkgs.coreutils pkgs.procps ]} \
       --run 'export BB_DATA_DIR=''${BB_DATA_DIR:-''${XDG_DATA_HOME:-$HOME/.local/share}/bbport}; mkdir -p "$BB_DATA_DIR"'
   '';
+  passthru = { inherit mangohud turnip; };
   meta.mainProgram = "bbport";
 }
