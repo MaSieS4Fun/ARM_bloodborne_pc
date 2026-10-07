@@ -8,6 +8,8 @@
 }:
 let
   lib = pkgs.lib;
+  # aarch64 hosts: the game's x86-64 code runs in FEXCore (out/fex/libbbcpu.so, build.sh).
+  arm = pkgs.stdenv.hostPlatform.isAarch64;
   root = ./..;
   # FSR 4.1.1 models are extracted from AMD's DLLs: never in a public package. BB_PACKAGE_FSR411=1
   # (appimage.sh runs nix with --impure) bundles the local fsr4_411 for one's own devices.
@@ -16,7 +18,7 @@ let
   # Only what the package needs (the tree also holds builds, profiles and captures).
   wanted = [
     "run.sh" "out" "out/bb-probe" "out/bb-gpu-capabilities" "out/gpu" "out/gpu/libbbgpu.so"
-  ] ++ assetDirs;
+  ] ++ lib.optionals arm [ "out/fex" "out/fex/libbbcpu.so" ] ++ assetDirs;
   src = builtins.path {
     name = "bbport-src";
     path = root;
@@ -28,8 +30,31 @@ let
   python = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
   # Mesa comes with the package. bbport_vulkan.py adds the host NVIDIA ICD and
   # only its vendor libraries (matching the host's kernel module).
-  icds = lib.concatMapStringsSep ":" (name: "${pkgs.mesa}/share/vulkan/icd.d/${name}")
-    [ "radeon_icd.x86_64.json" "intel_icd.x86_64.json" ];
+  # aarch64: Adreno (Turnip), Mali (Panfrost), Raspberry Pi (V3DV), Apple (Asahi), AMD.
+  icdArch = pkgs.stdenv.hostPlatform.parsed.cpu.name;
+  icdNames = if arm then [ "freedreno" "panfrost" "broadcom" "asahi" "radeon" ] else [ "radeon" "intel" ];
+  # Mesa 26's Turnip loses the device on the Adreno 740 (SM8550) without these patches. Only
+  # freedreno is rebuilt; the other drivers stay the binary cache's Mesa.
+  turnip = (pkgs.mesa.override {
+    galliumDrivers = [ "freedreno" ];
+    vulkanDrivers = [ "freedreno" ];
+    vulkanLayers = [ ];
+    enablePatentEncumberedCodecs = false;
+  }).overrideAttrs (old: {
+    patches = old.patches ++ [
+      ./mesa-sm8550/0001-add-a830-chip-id.patch
+      ./mesa-sm8550/0001-freedreno-ir3-vulkan-disable-bindless-ubo-const-lowering.patch
+      ./mesa-sm8550/001-fix-freedreno-vulkan.patch
+    ];
+    mesonFlags = map (flag: if lib.hasPrefix "-Dtools=" flag then "-Dtools=" else flag) old.mesonFlags
+      ++ [ "-Dgallium-va=disabled" ];
+    postInstall = old.postInstall + ''
+      mkdir -p $opencl $spirv2dxil
+    '';
+  });
+  icdMesa = name: if arm && name == "freedreno" then turnip else pkgs.mesa;
+  icds = lib.concatMapStringsSep ":"
+    (name: "${icdMesa name}/share/vulkan/icd.d/${name}_icd.${icdArch}.json") icdNames;
   # Fonts: bundled DejaVu and Adwaita plus the host's usual font directories, but not the host's
   # /etc/fonts: on NixOS it names fonts in the host's /nix/store, which the AppImage hides behind
   # its own store in some environments (Steam's FHS sandbox), and the launcher showed boxes.
@@ -68,7 +93,7 @@ pkgs.stdenv.mkDerivation {
   dontConfigure = true;
   # The binaries live under share/ (next to the scripts run.sh expects): strip them too, which
   # also drops the compiler and header paths their debug info would keep in the closure.
-  stripDebugList = [ "share/bbport/bin/gpu" ];
+  stripDebugList = [ "share/bbport/bin/gpu" ] ++ lib.optional arm "share/bbport/bin/cpu";
   # patchelf (RPATH shrinking) corrupts the non-PIE game binary's symbol versions; it finds
   # its library through $ORIGIN/gpu and its other libraries through the build's RUNPATH.
   dontPatchELF = true;
@@ -98,6 +123,7 @@ pkgs.stdenv.mkDerivation {
     install -m755 out/bb-probe $d/bin/bb-probe
     install -m755 out/bb-gpu-capabilities $d/bin/bb-gpu-capabilities
     install -Dm755 out/gpu/libbbgpu.so $d/bin/gpu/libbbgpu.so
+    ${lib.optionalString arm "install -Dm755 out/fex/libbbcpu.so $d/bin/cpu/libbbcpu.so"}
     runHook postInstall
   '';
   postFixup = ''
