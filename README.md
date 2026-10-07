@@ -6,6 +6,8 @@
 
 https://github.com/user-attachments/assets/e220b42c-849a-4e59-8f69-ada11f832298
 
+[YouTube Full video](https://www.youtube.com/watch?v=1qWNglLS5sk)
+
 ----------------------------
 
 THIS PROJECT IS NOT RELATED TO SHADPS4. ALL QUESTIONS RELATED TO THIS PROJECT SHOULD BE SENT TO THE DISCORD SERVER https://discord.gg/KYZRKk9CB, NOT TO THE SHADPS4 SERVER.
